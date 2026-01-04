@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>FixIt AI</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <style>
+    body {
+      background: #CBE3FF;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body class="container py-4">
+
+  <h2 class="text-center mb-4">🛠️ FixIt AI</h2>
+
+  <!-- LOGIN -->
+  <div id="loginCard" class="card p-3">
+    <h5>Login</h5>
+    <input id="loginEmail" class="form-control mb-2" placeholder="Email">
+    <input id="loginPass" type="password" class="form-control mb-2" placeholder="Password">
+    <button class="btn btn-primary w-100" onclick="login()">Login</button>
+    <p class="text-center mt-2">
+      No account? <a href="#" onclick="showRegister()">Register</a>
+    </p>
+  </div>
+
+  <!-- REGISTER -->
+  <div id="registerCard" class="card p-3 hidden">
+    <h5>Register</h5>
+    <input id="regEmail" class="form-control mb-2" placeholder="Email">
+    <input id="regPass" type="password" class="form-control mb-2" placeholder="Password">
+    <button class="btn btn-success w-100" onclick="register()">Create Account</button>
+    <p class="text-center mt-2">
+      <a href="#" onclick="showLogin()">Back to Login</a>
+    </p>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
+
+    <div class="mb-3">
+      <button class="btn btn-success" onclick="showReport()">📸 Report Issue</button>
+      <button class="btn btn-secondary" onclick="showHistory()">📄 Previous Issues</button>
+      <button class="btn btn-danger float-end" onclick="logout()">Logout</button>
+    </div>
+
+    <!-- REPORT -->
+    <div id="reportSection" class="card p-3 hidden">
+      <h5>Report an Issue</h5>
+
+      <input type="file" id="photo" class="form-control mb-2" accept="image/*" capture="environment">
+      <button class="btn btn-warning mb-2" onclick="runAI()">🤖 Detect using AI</button>
+
+      <div id="aiOutput" class="alert alert-info hidden"></div>
+
+      <input id="desc" class="form-control mb-2" placeholder="Description (required)">
+      <input id="location" class="form-control mb-2" placeholder="Location (required)">
+
+      <button class="btn btn-primary" onclick="saveIssue()">Upload</button>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="historySection" class="card p-3 mt-3 hidden">
+      <h5>Previous Issues</h5>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- ADMIN -->
+    <div id="adminSection" class="card p-3 mt-3 hidden">
+      <h5>🛡️ Admin Dashboard</h5>
+      <div id="adminIssues"></div>
+    </div>
+
+  </div>
+
+  <!-- FIREBASE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword }
+      from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAnJpSDHU7tI6y3g3VWKkFpqJry5fQSGNc",
+      authDomain: "gen-lang-client-0614740920.firebaseapp.com",
+      projectId: "gen-lang-client-0614740920",
+      storageBucket: "gen-lang-client-0614740920.firebasestorage.app",
+      messagingSenderId: "137270124902",
+      appId: "1:137270124902:web:7494d4851196987821a8a7",
+      measurementId: "G-K8H9P85MPE"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    window.firebaseAuth = auth;
+    window.firebaseRegister = createUserWithEmailAndPassword;
+    window.firebaseLogin = signInWithEmailAndPassword;
+  </script>
+
+  <script>
+    /* 🔔 Small Sweet Toast */
+    function toast(icon, text) {
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: icon,
+        title: text,
+        showConfirmButton: false,
+        timer: 1800
+      });
+    }
+
+    /* AUTH UI */
+    function showRegister() { loginCard.classList.add("hidden"); registerCard.classList.remove("hidden"); }
+    function showLogin() { registerCard.classList.add("hidden"); loginCard.classList.remove("hidden"); }
+
+    async function register() {
+      try {
+        const cred = await firebaseRegister(firebaseAuth, regEmail.value, regPass.value);
+        await fetch("auth.php", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "register", email: regEmail.value, firebase_uid: cred.user.uid })
+        });
+        toast("success", "Registered");
+        showLogin();
+      } catch (e) { toast("error", e.message); }
+    }
+
+    async function login() {
+      try {
+        const cred = await firebaseLogin(firebaseAuth, loginEmail.value, loginPass.value);
+        const res = await fetch("auth.php", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "firebase-login", firebase_uid: cred.user.uid })
+        });
+        const data = await res.json();
+        localStorage.setItem("user", JSON.stringify(data.user));
+        loginCard.classList.add("hidden"); dashboard.classList.remove("hidden");
+        toast("success", "Logged in");
+        if (data.user.role === "admin") { adminSection.classList.remove("hidden"); loadAdmin(); }
+        showReport();
+      } catch (e) { toast("error", "Login failed"); }
+    }
+
+    function logout() { location.reload(); }
+
+    /* NAV */
+    function showReport() { hideAll(); reportSection.classList.remove("hidden"); }
+    function showHistory() { hideAll(); historySection.classList.remove("hidden"); loadHistory(); }
+    function hideAll() { reportSection.classList.add("hidden"); historySection.classList.add("hidden"); }
+
+    /* AI */
+    async function runAI() {
+      if (!photo.files[0]) return toast("warning", "Upload image first");
+      const base64 = await toBase64(photo.files[0]);
+      const res = await fetch("analyze.php", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64 })
+      });
+      const data = await res.json();
+      if (data.error) return toast("error", "AI failed");
+      const parsed = JSON.parse(data.result);
+      aiOutput.innerHTML = `<b>${parsed.type}</b> | Severity ${parsed.severity}`;
+      aiOutput.classList.remove("hidden");
+      window.detectedType = parsed.type; window.detectedSeverity = parsed.severity;
+    }
+
+    /* SAVE ISSUE */
+    function saveIssue() {
+      if (!desc.value.trim() || !location.value.trim())
+        return toast("warning", "Description & Location required");
+      const user = JSON.parse(localStorage.getItem("user"));
+      fetch("issue.php", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save", user_id: user.id, type: window.detectedType || "Unknown",
+          description: desc.value, severity: window.detectedSeverity || 5, location: location.value
+        })
+      });
+      toast("success", "Issue reported");
+      showHistory();
+    }
+
+    /* HISTORY */
+    async function loadHistory() {
+      const res = await fetch("issue.php", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list" })
+      });
+      const issues = await res.json(); historyList.innerHTML = "";
+      issues.forEach(i => historyList.innerHTML +=
+        `<div class="border p-2 mb-2"><b>${i.type}</b> | ${i.status}<br>${i.description}<br>📍 ${i.location}</div>`);
+    }
+
+    /* ADMIN */
+    async function loadAdmin() {
+      const res = await fetch("issue.php", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list" })
+      });
+      const issues = await res.json(); adminIssues.innerHTML = "";
+      issues.forEach(i => adminIssues.innerHTML +=
+        `<div class="border p-2 mb-2"><b>${i.type}</b><br>${i.description}
+    <br><button class="btn btn-sm btn-success" onclick="updateStatus(${i.id},'Approved')">Approve</button>
+    <button class="btn btn-sm btn-danger" onclick="updateStatus(${i.id},'Closed')">Close</button></div>`);
+    }
+
+    async function updateStatus(id, status) {
+      await fetch("issue.php", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-status", issue_id: id, status })
+      });
+      toast("success", "Status updated"); loadAdmin();
+    }
+
+    function toBase64(f) { return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(",")[1]); fr.readAsDataURL(f); }); }
+  </script>
+
+</body>
+
+</html>
