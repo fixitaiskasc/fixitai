@@ -17,7 +17,17 @@
     }
 
     .hidden {
-      display: none;
+      display: none !important;
+    }
+
+    .loader-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
     }
   </style>
 </head>
@@ -84,6 +94,10 @@
       <div id="adminIssues"></div>
     </div>
 
+    <div id="globalLoader" class="loader-backdrop hidden">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
   </div>
 
   <!-- FIREBASE -->
@@ -128,32 +142,58 @@
     function showLogin() { registerCard.classList.add("hidden"); loginCard.classList.remove("hidden"); }
 
     async function register() {
+      showLoader();
       try {
         const cred = await firebaseRegister(firebaseAuth, regEmail.value, regPass.value);
+
         await fetch("auth.php", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "register", email: regEmail.value, firebase_uid: cred.user.uid })
         });
+
         toast("success", "Registered");
         showLogin();
-      } catch (e) { toast("error", e.message); }
+
+      } catch (e) {
+        toast("error", e.message);
+      } finally {
+        hideLoader();
+      }
     }
 
+
     async function login() {
+      showLoader();
       try {
         const cred = await firebaseLogin(firebaseAuth, loginEmail.value, loginPass.value);
+
         const res = await fetch("auth.php", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "firebase-login", firebase_uid: cred.user.uid })
         });
+
         const data = await res.json();
         localStorage.setItem("user", JSON.stringify(data.user));
-        loginCard.classList.add("hidden"); dashboard.classList.remove("hidden");
+
+        loginCard.classList.add("hidden");
+        dashboard.classList.remove("hidden");
         toast("success", "Logged in");
-        if (data.user.role === "admin") { adminSection.classList.remove("hidden"); loadAdmin(); }
+
+        if (data.user.role === "admin") {
+          adminSection.classList.remove("hidden");
+          loadAdmin();
+        }
         showReport();
-      } catch (e) { toast("error", "Login failed"); }
+
+      } catch (e) {
+        toast("error", "Login failed");
+      } finally {
+        hideLoader();
+      }
     }
+
 
     function logout() { location.reload(); }
 
@@ -228,6 +268,42 @@
 
     function toBase64(f) { return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(",")[1]); fr.readAsDataURL(f); }); }
   </script>
+
+  <script>
+    const loader = document.getElementById("globalLoader");
+    let activeRequests = 0;
+
+    function showLoader() {
+      loader.classList.remove("hidden");
+    }
+
+    function hideLoader() {
+      loader.classList.add("hidden");
+    }
+
+    const originalFetch = window.fetch;
+
+    window.fetch = async (...args) => {
+      activeRequests++;
+      showLoader();
+
+      try {
+        return await originalFetch(...args);
+      } catch (err) {
+        throw err;
+      } finally {
+        activeRequests--;
+        if (activeRequests <= 0) {
+          activeRequests = 0;
+          hideLoader();
+        }
+      }
+    };
+
+    window.addEventListener("error", hideLoader);
+    window.addEventListener("unhandledrejection", hideLoader);
+  </script>
+
 
 </body>
 
