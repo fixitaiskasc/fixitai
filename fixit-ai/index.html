@@ -77,7 +77,7 @@
       <div id="aiOutput" class="alert alert-info hidden"></div>
 
       <input id="desc" class="form-control mb-2" placeholder="Description (required)">
-      <input id="location" class="form-control mb-2" placeholder="Location (required)">
+      <input id="loc" class="form-control mb-2" placeholder="Location (required)">
 
       <button class="btn btn-primary" onclick="saveIssue()">Upload</button>
     </div>
@@ -220,14 +220,14 @@
 
     /* SAVE ISSUE */
     function saveIssue() {
-      if (!desc.value.trim() || !location.value.trim())
+      if (!desc.value.trim() || !loc.value.trim())
         return toast("warning", "Description & Location required");
       const user = JSON.parse(localStorage.getItem("user"));
       fetch("issue.php", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "save", user_id: user.id, type: window.detectedType || "Unknown",
-          description: desc.value, severity: window.detectedSeverity || 5, location: location.value
+          description: desc.value, severity: window.detectedSeverity || 5, location: loc.value
         })
       });
       toast("success", "Issue reported");
@@ -253,7 +253,7 @@
       });
       const issues = await res.json(); adminIssues.innerHTML = "";
       issues.forEach(i => adminIssues.innerHTML +=
-        `<div class="border p-2 mb-2"><b>${i.type}</b><br>${i.description}
+        `<div class="border p-2 mb-2"><b>${i.type} </b> | 📍${i.location}<br>${i.description}<br>
     <br><button class="btn btn-sm btn-success" onclick="updateStatus(${i.id},'Approved')">Approve</button>
     <button class="btn btn-sm btn-danger" onclick="updateStatus(${i.id},'Closed')">Close</button></div>`);
     }
