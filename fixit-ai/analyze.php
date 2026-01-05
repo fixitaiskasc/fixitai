@@ -1,7 +1,8 @@
 <?php
+require_once __DIR__ . '/config.php';
 header("Content-Type: application/json");
 
-$API_KEY = "AIzaSyBJXS6WI_IofZ168zCWG1AyrxWe5suRiIE";
+$API_KEY = GEMINI_API_KEY;
 
 $input = json_decode(file_get_contents("php://input"), true);
 
@@ -68,3 +69,4 @@ if (!isset($data["candidates"][0]["content"]["parts"][0]["text"])) {
 echo json_encode([
   "result" => $data["candidates"][0]["content"]["parts"][0]["text"]
 ]);
+
